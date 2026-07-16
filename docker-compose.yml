@@ -1,0 +1,248 @@
+version: '3.8'
+
+services:
+  # ─── Databases ────────────────────────────────────────────────
+  mongo:
+    image: mongo:7.0
+    container_name: shopnest-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: shopnest
+    networks:
+      - shopnest-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: shopnest-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: shopnest
+      POSTGRES_USER: shopnest
+      POSTGRES_PASSWORD: shopnest_password
+    networks:
+      - shopnest-network
+
+  # ─── Message Broker ───────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.12-management-alpine
+    container_name: shopnest-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - shopnest-network
+
+  # ─── Microservices ────────────────────────────────────────────
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: shopnest-user-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017/shopnest_users
+      JWT_SECRET: ${JWT_SECRET:-shopnest-jwt-secret-change-in-prod}
+      JWT_EXPIRES_IN: 7d
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - mongo
+      - rabbitmq
+    networks:
+      - shopnest-network
+
+  product-service:
+    build:
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: shopnest-product-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      PORT: 3002
+      NODE_ENV: development
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shopnest
+      POSTGRES_USER: shopnest
+      POSTGRES_PASSWORD: shopnest_password
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - shopnest-network
+
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: shopnest-order-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      PORT: 3003
+      NODE_ENV: development
+      MONGO_URI: mongodb://mongo:27017/shopnest_orders
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - mongo
+      - rabbitmq
+    networks:
+      - shopnest-network
+
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: shopnest-payment-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      PORT: 3004
+      NODE_ENV: development
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shopnest
+      POSTGRES_USER: shopnest
+      POSTGRES_PASSWORD: shopnest_password
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - shopnest-network
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: shopnest-notification-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      NODE_ENV: development
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-noreply@shopnest.com}
+      SMTP_PASS: ${SMTP_PASS:-placeholder}
+    depends_on:
+      - rabbitmq
+    networks:
+      - shopnest-network
+
+  # ─── API Gateway ──────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: shopnest-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET:-shopnest-jwt-secret-change-in-prod}
+      USER_SERVICE_URL: http://user-service:3001
+      PRODUCT_SERVICE_URL: http://product-service:3002
+      ORDER_SERVICE_URL: http://order-service:3003
+      PAYMENT_SERVICE_URL: http://payment-service:3004
+      NOTIFICATION_SERVICE_URL: http://notification-service:3005
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - payment-service
+      - notification-service
+    networks:
+      - shopnest-network
+
+  # ─── Frontend ─────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: shopnest-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_API_URL: http://localhost:8080
+    depends_on:
+      - api-gateway
+    networks:
+      - shopnest-network
+
+  # ─── Monitoring ───────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: shopnest-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - shopnest-network
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: shopnest-grafana
+    restart: unless-stopped
+    ports:
+      - "3006:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - shopnest-network
+
+# ─── Volumes ──────────────────────────────────────────────────
+volumes:
+  mongo_data:
+  postgres_data:
+  rabbitmq_data:
+  prometheus_data:
+  grafana_data:
+
+# ─── Networks ─────────────────────────────────────────────────
+networks:
+  shopnest-network:
+    driver: bridge

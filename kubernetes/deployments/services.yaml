@@ -1,0 +1,425 @@
+# ─── Frontend Deployment ─────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: shopnest
+  labels:
+    app: frontend
+    tier: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ${ECR_REGISTRY}/shopnest-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── API Gateway Deployment ──────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: shopnest
+  labels:
+    app: api-gateway
+    tier: gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "8080"
+    spec:
+      containers:
+        - name: api-gateway
+          image: ${ECR_REGISTRY}/shopnest-api-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "192Mi"
+            limits:
+              cpu: "400m"
+              memory: "384Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── User Service Deployment ─────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: shopnest
+  labels:
+    app: user-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3001"
+    spec:
+      containers:
+        - name: user-service
+          image: ${ECR_REGISTRY}/shopnest-user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: PORT
+              value: "3001"
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: shopnest-config
+                  key: MONGO_URI_USERS
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "300m"
+              memory: "384Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── Product Service Deployment ──────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: shopnest
+  labels:
+    app: product-service
+    tier: backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: product-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: product-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3002"
+    spec:
+      containers:
+        - name: product-service
+          image: ${ECR_REGISTRY}/shopnest-product-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: PORT
+              value: "3002"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── Order Service Deployment ────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: shopnest
+  labels:
+    app: order-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "3003"
+    spec:
+      containers:
+        - name: order-service
+          image: ${ECR_REGISTRY}/shopnest-order-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3003
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: PORT
+              value: "3003"
+            - name: MONGO_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: shopnest-config
+                  key: MONGO_URI_ORDERS
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "300m"
+              memory: "384Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3003
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── Payment Service Deployment ──────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: shopnest
+  labels:
+    app: payment-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: ${ECR_REGISTRY}/shopnest-payment-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3004
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: PORT
+              value: "3004"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: POSTGRES_PASSWORD
+            - name: STRIPE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: STRIPE_SECRET_KEY
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "192Mi"
+            limits:
+              cpu: "300m"
+              memory: "384Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3004
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: shopnest-registry-secret
+---
+# ─── Notification Service Deployment ─────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: shopnest
+  labels:
+    app: notification-service
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      containers:
+        - name: notification-service
+          image: ${ECR_REGISTRY}/shopnest-notification-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3005
+          envFrom:
+            - configMapRef:
+                name: shopnest-config
+          env:
+            - name: PORT
+              value: "3005"
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: SMTP_USER
+            - name: SMTP_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: shopnest-secrets
+                  key: SMTP_PASS
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3005
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      imagePullSecrets:
+        - name: shopnest-registry-secret

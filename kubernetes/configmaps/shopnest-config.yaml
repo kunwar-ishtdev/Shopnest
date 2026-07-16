@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shopnest
+  labels:
+    app: shopnest
+    environment: production
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: shopnest-config
+  namespace: shopnest
+data:
+  NODE_ENV: "production"
+  JWT_EXPIRES_IN: "7d"
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq-service:5672"
+  MONGO_URI_USERS: "mongodb://mongodb-service:27017/shopnest_users"
+  MONGO_URI_ORDERS: "mongodb://mongodb-service:27017/shopnest_orders"
+  POSTGRES_HOST: "postgres-service"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "shopnest"
+  POSTGRES_USER: "shopnest"
+  USER_SERVICE_URL: "http://user-service:3001"
+  PRODUCT_SERVICE_URL: "http://product-service:3002"
+  ORDER_SERVICE_URL: "http://order-service:3003"
+  PAYMENT_SERVICE_URL: "http://payment-service:3004"
+  NOTIFICATION_SERVICE_URL: "http://notification-service:3005"

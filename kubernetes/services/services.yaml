@@ -1,0 +1,155 @@
+# ─── Frontend Service ─────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: shopnest
+  labels:
+    app: frontend
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+---
+# ─── API Gateway Service (LoadBalancer) ──────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: shopnest
+  labels:
+    app: api-gateway
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  selector:
+    app: api-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+    - name: https
+      port: 443
+      targetPort: 8080
+  type: LoadBalancer
+---
+# ─── User Service ─────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: shopnest
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 3001
+      targetPort: 3001
+  type: ClusterIP
+---
+# ─── Product Service ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: shopnest
+spec:
+  selector:
+    app: product-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+  type: ClusterIP
+---
+# ─── Order Service ────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: shopnest
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 3003
+      targetPort: 3003
+  type: ClusterIP
+---
+# ─── Payment Service ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: shopnest
+spec:
+  selector:
+    app: payment-service
+  ports:
+    - port: 3004
+      targetPort: 3004
+  type: ClusterIP
+---
+# ─── Notification Service ─────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: shopnest
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 3005
+      targetPort: 3005
+  type: ClusterIP
+---
+# ─── MongoDB Service ──────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-service
+  namespace: shopnest
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - port: 27017
+      targetPort: 27017
+  type: ClusterIP
+---
+# ─── PostgreSQL Service ───────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: shopnest
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+# ─── RabbitMQ Service ─────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-service
+  namespace: shopnest
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  type: ClusterIP

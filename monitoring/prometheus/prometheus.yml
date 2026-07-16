@@ -1,0 +1,106 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'shopnest-monitor'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules
+rule_files:
+  - "rules/*.yml"
+
+scrape_configs:
+  # ─── Prometheus self-monitoring ───────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ─── API Gateway ──────────────────────────────────────────
+  - job_name: 'api-gateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api-gateway:8080']
+        labels:
+          service: 'api-gateway'
+          tier: 'gateway'
+    scrape_interval: 10s
+
+  # ─── User Service ─────────────────────────────────────────
+  - job_name: 'user-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['user-service:3001']
+        labels:
+          service: 'user-service'
+          tier: 'backend'
+
+  # ─── Product Service ──────────────────────────────────────
+  - job_name: 'product-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['product-service:3002']
+        labels:
+          service: 'product-service'
+          tier: 'backend'
+
+  # ─── Order Service ────────────────────────────────────────
+  - job_name: 'order-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['order-service:3003']
+        labels:
+          service: 'order-service'
+          tier: 'backend'
+
+  # ─── Payment Service ──────────────────────────────────────
+  - job_name: 'payment-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['payment-service:3004']
+        labels:
+          service: 'payment-service'
+          tier: 'backend'
+
+  # ─── Notification Service ─────────────────────────────────
+  - job_name: 'notification-service'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['notification-service:3005']
+        labels:
+          service: 'notification-service'
+          tier: 'backend'
+
+  # ─── Node Exporter (system metrics) ───────────────────────
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # ─── MongoDB Exporter ─────────────────────────────────────
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb-exporter:9216']
+        labels:
+          service: 'mongodb'
+          tier: 'database'
+
+  # ─── PostgreSQL Exporter ──────────────────────────────────
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+        labels:
+          service: 'postgresql'
+          tier: 'database'
+
+  # ─── RabbitMQ ─────────────────────────────────────────────
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+        labels:
+          service: 'rabbitmq'
+          tier: 'messaging'
